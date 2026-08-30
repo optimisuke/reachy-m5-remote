@@ -46,7 +46,20 @@ void drawSelect(Gfx& g, const Layout& L, const State& s) {
 
     // 選んでいるダンスを画面いっぱいの丸で見せる。丸ごとタップ範囲。
     g.fillCircle(L.cx, L.mainY, L.mainR, d.color);
-    icons::dance(g, d.icon, L.cx, L.mainY, 88, COL_FG);
+
+    // ひらがなの名前を大きく出す。読めなくても色と絵で分かるようにしてある。
+    g.setTextColor(COL_FG);
+    g.setTextDatum(lgfx::textdatum::middle_center);
+    if (s.showIcon) {
+        icons::dance(g, d.icon, L.cx, L.mainY - 46, 52, COL_FG);
+        g.setFont(&lgfx::fonts::lgfxJapanGothic_40);
+        g.drawString(d.label, L.cx, L.mainY + 58);
+    } else {
+        // 拡大するとビットマップフォントがギザギザになるので等倍で使う。
+        // M5GFX の日本語フォントは 40px が最大。
+        g.setFont(&lgfx::fonts::lgfxJapanGothic_40);
+        g.drawString(d.label, L.cx, L.mainY);
+    }
 
     // 左右にスワイプできることを示す。
     icons::chevron(g, L.cx - L.chevronDX, L.mainY, 22, -1, COL_DIM);

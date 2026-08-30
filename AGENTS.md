@@ -39,7 +39,7 @@ arduino-cli lib install ArduinoJson
 - ビルド時に `NUM_DIGITAL_PINS redefined` 等の警告が大量に出るが、**M5Stack コア自身の
   `variants/m5stack_stopwatch/pins_arduino.h` と `Arduino.h` のマクロ重複**で上流の問題。
   自コードの警告と混ぜないよう `grep -v packages/m5stack` で絞ると見やすい
-- 現状の使用量は Flash 39% / RAM 15%
+- 現状の使用量は Flash 56% / RAM 15%（日本語フォントの分が乗っている）
 
 ## UI は Mac のプレビューで詰める
 
@@ -56,7 +56,7 @@ arduino-cli lib install ArduinoJson
 `#if defined(SDL_h_)` の分岐が有効になる。
 
 - マウスのドラッグ＝スワイプ、クリック＝タップ。キーは A=きいろ、B/スペース=あお、
-  T=つながらない画面、1〜4=ダンス選択、S=PNG 保存
+  T=つながらない画面、I=絵ありと絵なしの切り替え、1〜4=ダンス選択、S=PNG 保存
 - `--shot` で書き出した PNG を読めば、目で見て詰められる
 - **arm64 の sdl2 が必要**（`brew install sdl2`）。Homebrew が `/usr/local` と
   `/opt/homebrew` の両方にある場合、`/opt/homebrew` 側でないとアーキテクチャが合わない
@@ -72,6 +72,8 @@ arduino-cli lib install ArduinoJson
 - `BLACK` / `WHITE` のような名前は Arduino 側の定義と衝突する。`COL_` を付ける
 - **`drawArc` は輪郭線しか描かない。** 太い帯にしたいときは `fillArc`
 - `readRect` を `uint8_t*` で呼ぶと 8bit カラー扱いになる。`lgfx::rgb888_t*` を使う
+- **日本語フォントは `lgfxJapanGothic_40` が最大。** `setTextSize()` で拡大すると
+  ビットマップなのでギザギザになるので等倍で使う
 
 ## シリアルログの読み方
 
@@ -98,7 +100,7 @@ arduino-cli monitor -p /dev/cu.usbmodem1101 -c baudrate=115200 --raw
 | `src/main.cpp` | UI と画面遷移、入力処理（タッチとボタン） |
 | `src/icons.cpp` / `.h` | 動きを表す絵などの図形描画。**UI に文字を使わない方針** |
 | `src/robot.cpp` / `.h` | Reachy Mini の daemon REST（起動シーケンス、再生、停止、状態） |
-| `include/dances.h` | ダンス4種の定義（id・色・絵）。増減させると点の数も自動追従 |
+| `include/dances.h` | ダンス4種の定義（id・ひらがな名・色・絵）。増減させると点の数も自動追従 |
 | `include/secrets.h` | Wi-Fi とロボットの宛先。gitignore 済み |
 
 ## ドキュメント

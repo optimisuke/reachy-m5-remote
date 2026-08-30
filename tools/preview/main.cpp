@@ -107,12 +107,17 @@ void save(const std::string& dir, const std::string& name) {
 // 全画面を書き出して終わる。目視で詰めるとき用。
 int shotAll(const std::string& dir) {
     st.wifiOk = true;
-    for (int i = 0; i < DANCE_COUNT; i++) {
-        st.screen = ui::SELECT;
-        st.selected = i;
-        ui::draw(*sim, L, st);
-        save(dir, std::string("select-") + DANCES[i].id);
+    // 絵あり・絵なしの両方を出して見比べられるようにする。
+    for (int withIcon = 1; withIcon >= 0; withIcon--) {
+        st.showIcon = withIcon;
+        for (int i = 0; i < DANCE_COUNT; i++) {
+            st.screen = ui::SELECT;
+            st.selected = i;
+            ui::draw(*sim, L, st);
+            save(dir, std::string(withIcon ? "select-" : "textonly-") + DANCES[i].id);
+        }
     }
+    st.showIcon = true;
     st.screen = ui::PLAYING;
     st.selected = 0;
     st.animStep = 5;
@@ -181,6 +186,10 @@ int frame(bool* /*running*/) {
             switch (e.key.keysym.sym) {
                 case SDLK_a: step(true, false, false); break;
                 case SDLK_b: case SDLK_SPACE: step(false, false, true); break;
+                case SDLK_i:  // 絵ありと絵なしを切り替える
+                    st.showIcon = !st.showIcon;
+                    ui::draw(*sim, L, st);
+                    break;
                 case SDLK_t:
                     st.screen = ui::TROUBLE;
                     st.trouble = "wifi ng";

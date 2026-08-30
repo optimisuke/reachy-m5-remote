@@ -26,6 +26,7 @@ struct State {
     bool wifiOk = false;
     const char* trouble = "";  // つながらない画面に小さく出す英字
     int animStep = 0;          // くるくるの位相
+    bool showIcon = true;      // ひらがなの上に動きの絵も出すか
 };
 
 // 画面全体を描く。状態が変わったときに呼ぶ。
