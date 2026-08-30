@@ -1,0 +1,11 @@
+.DS_Store
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+
+# 認証情報（絶対にコミットしない）
+include/secrets.h
+secrets.h
