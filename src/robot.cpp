@@ -14,22 +14,31 @@ const uint16_t HTTP_TIMEOUT_MS = 8000;
 
 int httpPost(const String& path, const String& body, String* out = nullptr) {
     HTTPClient http;
-    if (!http.begin(String(ROBOT_HOST) + path)) return -1;
+    if (!http.begin(String(ROBOT_HOST) + path)) {
+        Serial.printf("[http] begin ng POST %s\n", path.c_str());
+        return -1;
+    }
     http.setTimeout(HTTP_TIMEOUT_MS);
     if (body.length()) http.addHeader("Content-Type", "application/json");
     int code = http.POST(body);
     if (out && code > 0) *out = http.getString();
     http.end();
+    Serial.printf("[http] POST %s -> %d\n", path.c_str(), code);
     return code;
 }
 
 String httpGet(const String& path) {
     HTTPClient http;
-    if (!http.begin(String(ROBOT_HOST) + path)) return String();
+    if (!http.begin(String(ROBOT_HOST) + path)) {
+        Serial.printf("[http] begin ng GET %s\n", path.c_str());
+        return String();
+    }
     http.setTimeout(HTTP_TIMEOUT_MS);
+    int code = http.GET();
     String out;
-    if (http.GET() == 200) out = http.getString();
+    if (code == 200) out = http.getString();
     http.end();
+    Serial.printf("[http] GET %s -> %d (%u bytes)\n", path.c_str(), code, out.length());
     return out;
 }
 
@@ -60,6 +69,7 @@ bool ensureReady(String& detailOut) {
         }
     }
     // 本体を再起動するとトルクは disabled から始まるので毎回通す。
+    Serial.println("[robot] enabling motors");
     if (httpPost("/api/motors/set_mode/enabled", "") != 200) {
         detailOut = "motors ng";
         return false;
@@ -69,6 +79,7 @@ bool ensureReady(String& detailOut) {
 }
 
 String playDance(const char* moveId) {
+    Serial.printf("[robot] play %s\n", moveId);
     String body;
     String path = String("/api/move/play/recorded-move-dataset/") + DANCES_DATASET + "/" + moveId;
     if (httpPost(path, "", &body) != 200) return String();

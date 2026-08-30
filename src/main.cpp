@@ -24,6 +24,7 @@ Screen screen = BOOT;
 int selected = 0;
 String playingUuid;
 uint32_t nextPollAt = 0;
+uint32_t nextHeartbeatAt = 0;
 String troubleMsg;
 
 // ---------------------------------------------------------------- 触覚
@@ -126,26 +127,33 @@ bool connectWifi() {
 }
 
 void startUp() {
+    Serial.printf("[boot] wifi connecting to \"%s\"\n", WIFI_SSID);
     drawBoot("wifi...");
     if (!connectWifi()) {
+        Serial.printf("[boot] wifi ng (status=%d)\n", WiFi.status());
         troubleMsg = "wifi ng";
         screen = TROUBLE;
         drawTrouble(troubleMsg);
         return;
     }
 
+    Serial.printf("[boot] wifi ok ip=%s rssi=%d\n",
+                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
     drawBoot(WiFi.localIP().toString());
     delay(400);
 
+    Serial.printf("[boot] robot %s\n", ROBOT_HOST);
     drawBoot("robot...");
     String detail;
     if (!robot::ensureReady(detail)) {
+        Serial.printf("[boot] robot ng: %s\n", detail.c_str());
         troubleMsg = detail;
         screen = TROUBLE;
         drawTrouble(troubleMsg);
         return;
     }
 
+    Serial.println("[boot] ready");
     screen = SELECT;
     drawSelect();
 }
@@ -156,6 +164,12 @@ void setup() {
     auto cfg = M5.config();
     M5.begin(cfg);
     M5.Display.setBrightness(160);
+
+    Serial.begin(115200);
+    delay(600);  // USB CDC が繋がるのを少し待つ（待たないと最初のログが落ちる）
+    Serial.printf("\n[boot] board=%d display=%dx%d psram=%u\n",
+                  (int)M5.getBoard(), M5.Display.width(), M5.Display.height(),
+                  (unsigned)ESP.getPsramSize());
 
     cx = M5.Display.width() / 2;
     cy = M5.Display.height() / 2;
@@ -176,10 +190,12 @@ void loop() {
         case SELECT:
             if (a) {  // つぎのダンスへ
                 buzz(30);
+                Serial.println("[ui] next");
                 selected = (selected + 1) % DANCE_COUNT;
                 drawSelect();
             } else if (b) {  // ごー！
                 buzz(60);
+                Serial.printf("[ui] go %s\n", DANCES[selected].id);
                 flash(TFT_WHITE);
                 playingUuid = robot::playDance(DANCES[selected].id);
                 if (playingUuid.length() == 0) {
@@ -197,6 +213,7 @@ void loop() {
         case PLAYING:
             if (b) {  // とめる
                 buzz(60);
+                Serial.println("[ui] stop");
                 robot::stopMove(playingUuid);
                 screen = SELECT;
                 drawSelect();
@@ -221,6 +238,16 @@ void loop() {
 
         case BOOT:
             break;
+    }
+
+    // 起動ログはリセット直後に流れきってしまう。後からシリアルを繋いでも
+    // 状態が分かるように、待機中も定期的に現在の状態を出す。
+    if (millis() >= nextHeartbeatAt) {
+        nextHeartbeatAt = millis() + 5000;
+        static const char* names[] = {"boot", "select", "playing", "trouble"};
+        Serial.printf("[hb] screen=%s dance=%s wifi=%d ip=%s heap=%u\n",
+                      names[screen], DANCES[selected].id, WiFi.status(),
+                      WiFi.localIP().toString().c_str(), (unsigned)ESP.getFreeHeap());
     }
 
     delay(10);

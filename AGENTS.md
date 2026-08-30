@@ -41,6 +41,23 @@ arduino-cli lib install ArduinoJson
   自コードの警告と混ぜないよう `grep -v packages/m5stack` で絞ると見やすい
 - 現状の使用量は Flash 70% / RAM 15%
 
+## シリアルログの読み方
+
+```bash
+arduino-cli monitor -p /dev/cu.usbmodem1101 -c baudrate=115200 --raw
+```
+
+**起動ログはリセット直後に流れきる。** 書き込み直後にモニタを繋いでも `[boot]` 行は
+見えない。さらに `esptool` でリセットをかけると USB CDC が再列挙されてモニタの
+ハンドルが切れるので、その手も使えない。代わりに待機中も 5 秒ごとに状態を出している。
+
+```
+[hb] screen=select dance=simple_nod wifi=3 ip=192.168.1.6 heap=260272
+```
+
+`screen` は boot / select / playing / trouble、`wifi` は `WiFi.status()`（3 = 接続済み）。
+`[boot]` は起動シーケンス、`[ui]` はボタン操作、`[http]` は REST の結果。
+
 ## コード構成
 
 | ファイル | 役割 |

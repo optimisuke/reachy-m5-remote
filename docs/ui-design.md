@@ -104,11 +104,53 @@ ESP32-S3**R8** は OPI PSRAM なので `PSRAM=opi` が必要。これが無い�
 arduino-cli の `m5stack:esp32:m5stack_stopwatch` は既定でそうなっているため、
 ボードオプションを渡す必要はない。
 
+## 実機での動作確認（マイルストーン1 達成）
+
+書き込んで一通り動作した。シリアルログの実際の出力。
+
+```
+[http] GET /api/daemon/status -> 200 (753 bytes)
+[robot] enabling motors
+[http] POST /api/motors/set_mode/enabled -> 200
+[boot] ready
+[hb] screen=select dance=simple_nod wifi=3 ip=192.168.1.6 heap=260272
+[ui] next
+[ui] go side_to_side_sway
+[http] POST /api/move/play/recorded-move-dataset/pollen-robotics%2F...%2Fside_to_side_sway -> 200
+[http] GET /api/move/running -> 200 (49 bytes)   ← 再生中
+[http] GET /api/move/running -> 200 (2 bytes)    ← [] になったので えらぶ画面へ戻る
+```
+
+確認できたこと。
+
+- Wi-Fi 固定設定で接続、起動シーケンス（daemon status → motors enabled）が通る
+- ボタン（`M5.BtnA` / `M5.BtnB`）が拾える。画面遷移も想定どおり
+- ダンス再生 → 完了検知 → えらぶ画面に自動で戻る
+- ヒープは 260KB 前後で安定。リークの兆候なし
+
+### 解決した未検証項目
+
+- **ESP32 の mDNS。** `reachy-mini.local:8000` で全リクエストが 200 を返した。
+  引き継ぎドキュメントで懸念されていた不安定さは出ず、IP フォールバックは不要だった
+- **`GET /api/move/running` の 800ms 間隔。** 問題なし。再生中は 49 バイト（uuid 入り）、
+  終了後は 2 バイト（`[]`）が返り、遅延なく検知できる
+
+## シリアルログ
+
+起動ログはリセット直後に流れきってしまい、後からシリアルを繋いでも見えない。
+そのため待機中も 5 秒ごとに現在の状態を出している。
+
+```
+[hb] screen=select dance=simple_nod wifi=3 ip=192.168.1.6 heap=260272
+```
+
+`screen` は boot / select / playing / trouble、`wifi` は `WiFi.status()`
+（3 = `WL_CONNECTED`）。
+
 ## 未検証・要検証
 
 - **振動モーターの駆動方法。** M5Unified に API が無い。M5IOE1（`M5.getIOExpander(0)`）の
   未使用ピンを叩く必要がありそう。`buzz()` は現状スタブ
 - 日本語フォント `lgfxJapanGothic_*` の文字幅。円形画面の下部は横幅が狭いので、
-  実機で切れていないか確認する
-- `GET /api/move/running` を 800ms 間隔で叩いているが、この頻度で問題ないか
+  実機の目視で切れていないか確認する（ログでは分からない）
 - タッチは使えると分かったが、UI に足すかは未決（ボタン2つで足りている）
