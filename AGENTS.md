@@ -31,16 +31,6 @@ arduino-cli lib install M5Unified@0.2.21
 arduino-cli lib install ArduinoJson
 ```
 
-### PlatformIO は使わない
-
-`platformio.ini` は置いていない。**追加しないこと。**
-
-PlatformIO 公式の `espressif32` 6.12.0 が引くのは `framework-arduinoespressif32 ~3.20017.0`
-= Arduino コア **2.0.17** で、StopWatch の variant が入った M5Stack コア 3.3.7 を引けない。
-3.x コアを使うには pioarduino など非公式プラットフォームが必要になる。
-`docs/handoff-m5stack-controller.md` には PlatformIO で進める前提が書いてあるが、
-そちらは初期の想定なのでこの AGENTS.md を優先する。
-
 ## ビルド時の注意
 
 - **`include/secrets.h` はコミットしない**（gitignore 済み）。無い場合

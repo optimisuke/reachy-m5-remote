@@ -28,9 +28,18 @@ else
 fi
 
 if [ "${1:-}" = "upload" ]; then
-    PORT="$(arduino-cli board list --json \
-        | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((p["port"]["address"] for p in d.get("detected_ports",[]) if "usb" in p["port"]["protocol"]), ""))')"
-    [ -n "$PORT" ] || { echo "error: ポートが見つからない" >&2; exit 1; }
+    # protocol は USB でも "serial" なので、Espressif の VID (0x303A) で絞る。
+    PORT="$(arduino-cli board list --json | python3 -c '
+import json, sys
+ports = json.load(sys.stdin).get("detected_ports", [])
+esp = [p["port"]["address"] for p in ports
+       if (p["port"].get("properties") or {}).get("vid", "").lower() == "0x303a"]
+print(esp[0] if esp else "")')"
+    [ -n "$PORT" ] || {
+        echo "error: Espressif のポートが見つからない。USB を繋いだか確認する" >&2
+        arduino-cli board list >&2
+        exit 1
+    }
     echo "uploading to $PORT"
     arduino-cli compile -b "$FQBN" -u -p "$PORT" "$STAGE"
 else
