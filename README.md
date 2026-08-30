@@ -9,25 +9,32 @@ Mac もクラウドも介さず、同じ LAN 内で StopWatch から本体の da
 
 **こども向けのダンスリモコン。実機で動作確認済み。**
 
-ボタン2つだけで操作する。文字が読めなくても色と位置で区別できるようにしてある。
+**文字を使わない。** 小さい文字は円形画面では読みにくいので、色と絵と位置だけで伝える。
+タッチとボタンのどちらでも操作できる。
 
-- **きいろ (KEYA)** … つぎのダンスへ
-- **あお (KEYB)** … ごー！（再生中は とめる）
-
-選んでいるダンスを円形画面いっぱいの色の丸で1つだけ見せる。再生が終わると自動で
-えらぶ画面に戻る。
-
-| 色 | ダンス | 画面の名前 |
+| したいこと | タッチ | ボタン |
 | --- | --- | --- |
-| 🟢 緑 | `simple_nod` | うんうん |
-| 🔵 青 | `side_to_side_sway` | ゆらゆら |
-| 🟡 黄 | `dizzy_spin` | くるくる |
-| 🔴 赤 | `chicken_peck` | つんつん |
+| つぎのダンスへ | 左へスワイプ | きいろ (KEYA) |
+| ひとつ前のダンスへ | 右へスワイプ | — |
+| ごー！（再生） | 画面をタップ | あお (KEYB) |
+| とめる | 再生中にタップ | あお (KEYB) |
+
+選んでいるダンスを円形画面いっぱいの色の丸で1つだけ見せる。丸の中には動きを表す絵を
+図形で描いている。再生が終わると自動でえらぶ画面に戻る。
+
+| 色 | ダンス | 絵 |
+| --- | --- | --- |
+| 🟢 緑 | `simple_nod` | 縦の両矢印 ↕ |
+| 🔵 青 | `side_to_side_sway` | 横の両矢印 ↔ |
+| 🟡 黄 | `dizzy_spin` | 丸い矢印 ↻ |
+| 🔴 赤 | `chicken_peck` | 点をつつく斜めの矢印 |
+
+画面のいちばん外周に細いリングがあり、Wi-Fi が落ちると赤くなる。
 
 ダンスの増減は [`include/dances.h`](include/dances.h) の配列を編集するだけでよい
 （画面下の点の数も自動で追従する）。設計は [`docs/ui-design.md`](docs/ui-design.md)。
 
-タッチ・IMU・ストップウォッチ機能・感情モーション85種は意図的に入れていない。
+IMU・ストップウォッチ機能・感情モーション85種は意図的に入れていない。
 
 ## はじめに読むもの
 
@@ -84,7 +91,8 @@ arduino-cli lib install ArduinoJson
 ```
 
 ソースは `src/` と `include/` に分けてあるので、`tools/build.sh` が arduino-cli 用の
-スケッチ構成へ一時展開してからビルドしている。使用量は Flash 70% / RAM 15%。
+スケッチ構成へ一時展開してからビルドしている。使用量は Flash 39% / RAM 15%
+（文字を使わない UI にして日本語フォントを外したので 70% から下がった）。
 
 PlatformIO は使わない。公式の `espressif32` は Arduino コア 2.0.x で止まっていて
 StopWatch の variant を引けないため。
@@ -98,11 +106,14 @@ arduino-cli monitor -p /dev/cu.usbmodem1101 -c baudrate=115200 --raw
 待機中も5秒ごとに状態を出しているので、後から繋いでも今の状態が分かる。
 
 ```
-[hb] screen=select dance=simple_nod wifi=3 ip=192.168.1.6 heap=260272
+[hb] screen=select dance=simple_nod touch=1 wifi=3 ip=192.168.1.6 heap=260252
+[touch] release at (59,135) dx=-185 -> swipe
+[ui] next -> dizzy_spin
 ```
 
 `screen` は boot / select / playing / trouble、`wifi` は `WiFi.status()`（3 = 接続済み）。
-`[boot]` は起動シーケンス、`[ui]` はボタン操作、`[http]` は REST の結果。
+`[boot]` は起動シーケンス、`[touch]` はタッチ、`[ui]` は確定した操作、
+`[http]` は REST の結果。
 
 ## うまく動かないときの切り分け
 
@@ -124,7 +135,8 @@ curl -X POST "http://reachy-mini.local:8000/api/move/play/recorded-move-dataset/
 | ファイル | 役割 |
 | --- | --- |
 | `src/main.cpp` | UI と画面遷移、ボタン処理 |
+| `src/icons.cpp` / `.h` | 動きを表す絵などの図形描画（文字を使わないため） |
 | `src/robot.cpp` / `.h` | daemon REST（起動シーケンス、再生、停止、状態） |
-| `include/dances.h` | ダンス4種の定義（id・表示名・色） |
+| `include/dances.h` | ダンス4種の定義（id・色・絵） |
 | `include/secrets.h` | Wi-Fi とロボットの宛先。gitignore 済み |
 | `tools/build.sh` | arduino-cli でビルド・書き込み |

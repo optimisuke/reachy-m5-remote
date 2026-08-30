@@ -39,7 +39,7 @@ arduino-cli lib install ArduinoJson
 - ビルド時に `NUM_DIGITAL_PINS redefined` 等の警告が大量に出るが、**M5Stack コア自身の
   `variants/m5stack_stopwatch/pins_arduino.h` と `Arduino.h` のマクロ重複**で上流の問題。
   自コードの警告と混ぜないよう `grep -v packages/m5stack` で絞ると見やすい
-- 現状の使用量は Flash 70% / RAM 15%
+- 現状の使用量は Flash 39% / RAM 15%
 
 ## シリアルログの読み方
 
@@ -52,19 +52,21 @@ arduino-cli monitor -p /dev/cu.usbmodem1101 -c baudrate=115200 --raw
 ハンドルが切れるので、その手も使えない。代わりに待機中も 5 秒ごとに状態を出している。
 
 ```
-[hb] screen=select dance=simple_nod wifi=3 ip=192.168.1.6 heap=260272
+[hb] screen=select dance=simple_nod touch=1 wifi=3 ip=192.168.1.6 heap=260252
 ```
 
 `screen` は boot / select / playing / trouble、`wifi` は `WiFi.status()`（3 = 接続済み）。
-`[boot]` は起動シーケンス、`[ui]` はボタン操作、`[http]` は REST の結果。
+`[boot]` は起動シーケンス、`[touch]` はタッチの生の判定、`[ui]` は確定した操作
+（タッチ・ボタンのどちらからでも来る）、`[http]` は REST の結果。
 
 ## コード構成
 
 | ファイル | 役割 |
 | --- | --- |
-| `src/main.cpp` | UI と画面遷移、ボタン処理 |
+| `src/main.cpp` | UI と画面遷移、入力処理（タッチとボタン） |
+| `src/icons.cpp` / `.h` | 動きを表す絵などの図形描画。**UI に文字を使わない方針** |
 | `src/robot.cpp` / `.h` | Reachy Mini の daemon REST（起動シーケンス、再生、停止、状態） |
-| `include/dances.h` | ダンス4種の定義（id・表示名・色）。増減させると点の数も自動追従 |
+| `include/dances.h` | ダンス4種の定義（id・色・絵）。増減させると点の数も自動追従 |
 | `include/secrets.h` | Wi-Fi とロボットの宛先。gitignore 済み |
 
 ## ドキュメント
