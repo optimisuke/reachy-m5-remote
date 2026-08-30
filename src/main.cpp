@@ -1,8 +1,8 @@
 // M5Stack StopWatch から Reachy Mini のダンスを再生する。
 //
 // UI は「一度に一つだけ大きく見せる」方式。
-//   きいろボタン(KEYA/G2) = つぎのダンスへ
-//   あおボタン  (KEYB/G1) = ごー！（再生中は とめる）
+//   きいろボタン(KEYA/G2) = M5.BtnA = つぎのダンスへ
+//   あおボタン  (KEYB/G1) = M5.BtnB = ごー！（再生中は とめる）
 // 文字が読めなくても色と位置で区別できるようにしてある。
 
 #include <M5Unified.h>
@@ -14,13 +14,9 @@
 
 namespace {
 
-// StopWatch のボタン。M5Unified がこの機種を認識しない可能性があるので、
-// 公式ドキュメントのピン番号を直接読む。KEYA=G2(黄), KEYB=G1(青)。
-constexpr int PIN_KEY_A = 2;
-constexpr int PIN_KEY_B = 1;
-
-// 円形 AMOLED 466x466。
-int cx = 233, cy = 233;
+// 円形 AMOLED 468x468。座標は実際の画面サイズから作る。
+int cx = 234, cy = 234;
+int circleY, dotsY, hintY;
 
 enum Screen { BOOT, SELECT, PLAYING, TROUBLE };
 Screen screen = BOOT;
@@ -30,36 +26,11 @@ String playingUuid;
 uint32_t nextPollAt = 0;
 String troubleMsg;
 
-// ---------------------------------------------------------------- ボタン
-
-struct Key {
-    int pin;
-    bool prev = true;  // プルアップなので押していないときは HIGH
-    uint32_t lastChange = 0;
-
-    void begin() { pinMode(pin, INPUT_PULLUP); }
-
-    // 押した瞬間だけ true。30ms のデバウンス付き。
-    bool pressed() {
-        bool now = digitalRead(pin);
-        uint32_t t = millis();
-        if (now != prev && t - lastChange > 30) {
-            lastChange = t;
-            prev = now;
-            return now == LOW;
-        }
-        return false;
-    }
-};
-
-Key keyA{PIN_KEY_A};
-Key keyB{PIN_KEY_B};
-
 // ---------------------------------------------------------------- 触覚
 
-// StopWatch は振動モーターを内蔵しているが、駆動ピンが公式ドキュメントに
-// 明記されていない（要検証: M5IOE1 経由の可能性）。判明するまでは
-// 画面のフラッシュだけでフィードバックする。
+// StopWatch は振動モーターを内蔵しているが、M5Unified に API がなく
+// 駆動方法も公式ドキュメントに明記されていない（要検証: M5IOE1 経由の可能性）。
+// 判明するまでは画面のフラッシュだけでフィードバックする。
 void buzz(uint16_t /*ms*/) {
     // TODO: 振動モーターの制御方法が分かったらここに入れる。
 }
@@ -76,11 +47,11 @@ void drawSelect() {
     M5.Display.fillScreen(TFT_BLACK);
 
     // 選んでいるダンスを画面いっぱいの丸で見せる。
-    M5.Display.fillCircle(cx, 200, 135, d.color);
+    M5.Display.fillCircle(cx, circleY, 135, d.color);
     M5.Display.setTextColor(TFT_WHITE);
     M5.Display.setTextDatum(middle_center);
     M5.Display.setFont(&fonts::lgfxJapanGothic_40);
-    M5.Display.drawString(d.label, cx, 200);
+    M5.Display.drawString(d.label, cx, circleY);
 
     // 「4つのうちいまここ」を点で示す。
     const int spacing = 44;
@@ -88,15 +59,15 @@ void drawSelect() {
     for (int i = 0; i < DANCE_COUNT; i++) {
         int x = x0 + spacing * i;
         if (i == selected) {
-            M5.Display.fillCircle(x, 370, 13, TFT_WHITE);
+            M5.Display.fillCircle(x, dotsY, 13, TFT_WHITE);
         } else {
-            M5.Display.drawCircle(x, 370, 10, 0x52525B);
+            M5.Display.drawCircle(x, dotsY, 10, 0x52525B);
         }
     }
 
     M5.Display.setFont(&fonts::lgfxJapanGothic_16);
     M5.Display.setTextColor(0xA1A1AA);
-    M5.Display.drawString("きいろ→つぎ  あお→ごー", cx, 415);
+    M5.Display.drawString("きいろ→つぎ  あお→ごー", cx, hintY);
     drawStatusDot(true);
 }
 
@@ -106,9 +77,9 @@ void drawPlaying() {
     M5.Display.setTextColor(TFT_WHITE);
     M5.Display.setTextDatum(middle_center);
     M5.Display.setFont(&fonts::lgfxJapanGothic_40);
-    M5.Display.drawString("おどってる！", cx, 210);
+    M5.Display.drawString("おどってる！", cx, circleY + 10);
     M5.Display.setFont(&fonts::lgfxJapanGothic_16);
-    M5.Display.drawString("あお→とめる", cx, 330);
+    M5.Display.drawString("あお→とめる", cx, dotsY - 40);
 }
 
 void drawTrouble(const String& msg) {
@@ -116,11 +87,11 @@ void drawTrouble(const String& msg) {
     M5.Display.setTextDatum(middle_center);
     M5.Display.setTextColor(0xEF4444);
     M5.Display.setFont(&fonts::lgfxJapanGothic_40);
-    M5.Display.drawString("つながらない", cx, 190);
+    M5.Display.drawString("つながらない", cx, circleY - 10);
     M5.Display.setTextColor(0xA1A1AA);
     M5.Display.setFont(&fonts::lgfxJapanGothic_16);
-    M5.Display.drawString(msg, cx, 270);
-    M5.Display.drawString("きいろ→もういちど", cx, 330);
+    M5.Display.drawString(msg, cx, circleY + 70);
+    M5.Display.drawString("きいろ→もういちど", cx, dotsY - 40);
     drawStatusDot(false);
 }
 
@@ -129,10 +100,10 @@ void drawBoot(const String& line) {
     M5.Display.setTextDatum(middle_center);
     M5.Display.setTextColor(TFT_WHITE);
     M5.Display.setFont(&fonts::lgfxJapanGothic_24);
-    M5.Display.drawString("じゅんびちゅう", cx, 200);
+    M5.Display.drawString("じゅんびちゅう", cx, circleY);
     M5.Display.setTextColor(0xA1A1AA);
     M5.Display.setFont(&fonts::lgfxJapanGothic_16);
-    M5.Display.drawString(line, cx, 260);
+    M5.Display.drawString(line, cx, circleY + 60);
 }
 
 // 押したことが必ず分かるように一瞬光らせる。
@@ -185,19 +156,21 @@ void setup() {
     auto cfg = M5.config();
     M5.begin(cfg);
     M5.Display.setBrightness(160);
+
     cx = M5.Display.width() / 2;
     cy = M5.Display.height() / 2;
-
-    keyA.begin();
-    keyB.begin();
+    circleY = cy - 33;
+    dotsY = cy + 137;
+    hintY = cy + 182;
 
     startUp();
 }
 
 void loop() {
     M5.update();
-    bool a = keyA.pressed();
-    bool b = keyB.pressed();
+    // StopWatch は M5Unified が BtnA=G2(黄) / BtnB=G1(青) にマッピングしている。
+    bool a = M5.BtnA.wasPressed();
+    bool b = M5.BtnB.wasPressed();
 
     switch (screen) {
         case SELECT:

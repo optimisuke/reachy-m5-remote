@@ -72,18 +72,42 @@ Wi-Fi・daemon・モーターのどこで失敗したかを小さく英字で出
 
 意図的に外した。マイルストーン2以降で足す。
 
-- タッチ操作（ボタン2つで足りる）
+- タッチ操作（`M5.Touch` で使えることは確認済み。ボタン2つで足りるので入れていない）
 - 感情モーション85種のメニュー
 - IMU 連動、ストップウォッチ機能
 - 振動フィードバック（後述の未検証項目のため）
 
+## ハードウェア対応状況（M5Unified のソースで確認済み）
+
+M5Unified 0.2.21 / M5GFX 0.2.28 時点で StopWatch は正式サポートされている。
+パネルやタッチの設定を手書きする必要はない。
+
+| 項目 | 状況 | 根拠 |
+| --- | --- | --- |
+| ボード自動判別 | ○ | `board_M5StopWatch = 30`（M5GFX 0.2.26 以降）。I2C で CST820 の有無を見て判別 |
+| 画面 | ○ `M5.Display` | `Panel_CO5300` 派生の `Panel_StopWatch`。468x468、`offset_x = 6`、QSPI |
+| タッチ | ○ `M5.Touch` | `Touch_CST816S` を I2C `0x15`（SDA=G47 / SCL=G48）で初期化済み。CST820 互換 |
+| ボタン | ○ `M5.BtnA` / `M5.BtnB` | `BtnA = GPIO2`（きいろ）、`BtnB = GPIO1`（あお） |
+| スピーカー・マイク | ○ | ES8311 の電源制御を M5IOE1 経由で行う専用コールバックあり |
+| 振動モーター | **API なし** | M5Unified に `vibration` / `motor` の実装が無い。M5IOE1 の空きピン経由の可能性（要検証） |
+
+### PSRAM の設定が必須
+
+M5GFX が起動時にこの警告を出す。
+
+```
+M5StopWatch: OPI-PSRAM is disabled; the display falls back to direct drawing,
+which may render incorrectly when the drawing origin is at an odd coordinate.
+```
+
+ESP32-S3**R8** は OPI PSRAM なので、`platformio.ini` に
+`board_build.arduino.memory_type = qio_opi` が必要。これが無いと描画が崩れる。
+
 ## 未検証・要検証
 
-- **M5Unified が StopWatch を認識するか。** 円形 AMOLED は CO5300（QSPI）。
-  `board = esp32s3box` で始めているが、`M5.Display` が出ない場合は M5GFX の
-  パネル設定を手書きする必要がある。ボタンは M5Unified に頼らず GPIO を直読みしてある
-- **振動モーターの駆動方法。** 内蔵されているがピンが公式ドキュメントに明記されていない。
-  M5IOE1 経由の可能性。`buzz()` は現状スタブ
+- **振動モーターの駆動方法。** M5Unified に API が無い。M5IOE1（`M5.getIOExpander(0)`）の
+  未使用ピンを叩く必要がありそう。`buzz()` は現状スタブ
 - 日本語フォント `lgfxJapanGothic_*` の文字幅。円形画面の下部は横幅が狭いので、
   実機で切れていないか確認する
 - `GET /api/move/running` を 800ms 間隔で叩いているが、この頻度で問題ないか
+- タッチは使えると分かったが、UI に足すかは未決（ボタン2つで足りている）
