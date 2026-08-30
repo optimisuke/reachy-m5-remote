@@ -100,8 +100,9 @@ M5StopWatch: OPI-PSRAM is disabled; the display falls back to direct drawing,
 which may render incorrectly when the drawing origin is at an odd coordinate.
 ```
 
-ESP32-S3**R8** は OPI PSRAM なので、`platformio.ini` に
-`board_build.arduino.memory_type = qio_opi` が必要。これが無いと描画が崩れる。
+ESP32-S3**R8** は OPI PSRAM なので `PSRAM=opi` が必要。これが無いと描画が崩れる。
+arduino-cli の `m5stack:esp32:m5stack_stopwatch` は既定でそうなっているため、
+ボードオプションを渡す必要はない。
 
 ## 未検証・要検証
 

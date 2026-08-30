@@ -180,6 +180,10 @@ ESP-IDF が使える。PlatformIO の設定例は `board = esp32s3box`、
 
 ### 開発方針
 
+> 補足（後から判明）: ビルドは **arduino-cli** を使うことにした。M5Stack コア 3.3.7 に
+> StopWatch のボード定義があり、PSRAM などの設定が既定で正しい。PlatformIO 公式の
+> `espressif32` は Arduino コア 2.0.x 止まりでその variant を引けない。詳細は `AGENTS.md`。
+
 **PlatformIO + Arduino フレームワーク**で進める。ライブラリは M5Unified（ボタン・
 ディスプレイ・IMU・スピーカーを統一的に扱える）、`HTTPClient`、`ArduinoJson`。
 

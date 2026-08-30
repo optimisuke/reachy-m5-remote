@@ -2,15 +2,16 @@
 
 M5Stack StopWatch（ESP32-S3）から Reachy Mini を操作するファームウェア。
 
-## ビルドは arduino-cli を使う（PlatformIO ではない）
+## ビルドは arduino-cli を使う
 
 ```bash
 ./tools/build.sh          # ビルドのみ
 ./tools/build.sh upload   # ビルドして書き込み（ポートは自動検出）
 ```
 
-`tools/build.sh` が、PlatformIO 構成（`src/` と `include/`）を arduino-cli が要求する
-スケッチ構成（フォルダ名と同名の空 `.ino` ＋ ソース平置き）へ一時展開してからビルドする。
+ソースは `src/` と `include/` に分けてある。`tools/build.sh` が、これを arduino-cli が
+要求するスケッチ構成（フォルダ名と同名の空 `.ino` ＋ ソース平置き）へ一時展開して
+からビルドする。リポジトリ側の構成は崩さない。
 
 FQBN は `m5stack:esp32:m5stack_stopwatch`。M5Stack コア 3.3.7 にこの variant があり、
 **PSRAM=opi / 16MB Flash / qio が既定で正しい**ので、ボードオプションを渡す必要はない。
@@ -30,13 +31,15 @@ arduino-cli lib install M5Unified@0.2.21
 arduino-cli lib install ArduinoJson
 ```
 
-### PlatformIO を使わない理由
+### PlatformIO は使わない
 
-`platformio.ini` は残してあるが**未検証の代替手段**。触る必要はない。
+`platformio.ini` は置いていない。**追加しないこと。**
 
 PlatformIO 公式の `espressif32` 6.12.0 が引くのは `framework-arduinoespressif32 ~3.20017.0`
 = Arduino コア **2.0.17** で、StopWatch の variant が入った M5Stack コア 3.3.7 を引けない。
 3.x コアを使うには pioarduino など非公式プラットフォームが必要になる。
+`docs/handoff-m5stack-controller.md` には PlatformIO で進める前提が書いてあるが、
+そちらは初期の想定なのでこの AGENTS.md を優先する。
 
 ## ビルド時の注意
 

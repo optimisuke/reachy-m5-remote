@@ -63,12 +63,11 @@ arduino-cli lib install ArduinoJson
 ./tools/build.sh upload   # 書き込み（ポートは自動検出）
 ```
 
-このリポジトリは PlatformIO の構成（`src/` と `include/`）なので、`tools/build.sh` が
-arduino-cli 用のスケッチ構成に一時展開してからビルドしている。
+ソースは `src/` と `include/` に分けてあるので、`tools/build.sh` が arduino-cli 用の
+スケッチ構成へ一時展開してからビルドしている。
 
-`platformio.ini` も置いてあるが**未検証**。PlatformIO 公式の `espressif32` は
-Arduino コア 2.0.x で止まっていて StopWatch の variant を引けないため、
-主なビルド方法は arduino-cli とする。
+PlatformIO は使わない。公式の `espressif32` は Arduino コア 2.0.x で止まっていて
+StopWatch の variant を引けないため。
 
 ## 動作確認の順序
 
