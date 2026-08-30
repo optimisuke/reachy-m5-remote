@@ -49,11 +49,26 @@ cp include/secrets.h.example include/secrets.h
 #define ROBOT_HOST    "http://reachy-mini.local:8000"
 ```
 
-ビルドと書き込みは PlatformIO。
+## ビルド
+
+**arduino-cli** を使う。M5Stack コア 3.3.7 に StopWatch のボード定義
+（`m5stack:esp32:m5stack_stopwatch`）が入っていて、PSRAM=opi などの設定が既定で正しい。
 
 ```bash
-pio run -t upload && pio device monitor
+arduino-cli core install m5stack:esp32          # 3.3.7 以降
+arduino-cli lib install M5Unified@0.2.21        # StopWatch 対応は 0.2.21 以降
+arduino-cli lib install ArduinoJson
+
+./tools/build.sh          # ビルドのみ
+./tools/build.sh upload   # 書き込み（ポートは自動検出）
 ```
+
+このリポジトリは PlatformIO の構成（`src/` と `include/`）なので、`tools/build.sh` が
+arduino-cli 用のスケッチ構成に一時展開してからビルドしている。
+
+`platformio.ini` も置いてあるが**未検証**。PlatformIO 公式の `espressif32` は
+Arduino コア 2.0.x で止まっていて StopWatch の variant を引けないため、
+主なビルド方法は arduino-cli とする。
 
 ## 動作確認の順序
 
