@@ -97,6 +97,22 @@ arduino-cli lib install ArduinoJson
 PlatformIO は使わない。公式の `espressif32` は Arduino コア 2.0.x で止まっていて
 StopWatch の variant を引けないため。
 
+## UI を Mac で確認する
+
+実機に書き込まずに、同じ描画コードを Mac のウィンドウで動かせる。
+
+```bash
+brew install sdl2                     # 初回だけ（arm64 側の Homebrew で）
+./tools/preview/build.sh              # ウィンドウを開いて操作できる
+./tools/preview/build.sh --shot out/  # 全画面を PNG に書き出して終了
+```
+
+マウスのドラッグ＝スワイプ、クリック＝タップ。キーは A=きいろ、B/スペース=あお、
+T=つながらない画面、1〜4=ダンス選択、S=PNG 保存。
+
+M5GFX には SDL バックエンドが同梱されているので、`src/ui.cpp` と `src/icons.cpp` を
+そのまま Mac で動かしている。この2つは M5Unified や Wi-Fi に依存させていない。
+
 ## 動いているか確かめる
 
 ```bash
@@ -135,8 +151,11 @@ curl -X POST "http://reachy-mini.local:8000/api/move/play/recorded-move-dataset/
 | ファイル | 役割 |
 | --- | --- |
 | `src/main.cpp` | UI と画面遷移、ボタン処理 |
+| `src/ui.cpp` / `.h` | 画面の描画。実機と Mac プレビューで共用 |
 | `src/icons.cpp` / `.h` | 動きを表す絵などの図形描画（文字を使わないため） |
+| `src/gfx.h` | 実機（M5Unified）と Mac（M5GFX+SDL）で描画型を揃える |
 | `src/robot.cpp` / `.h` | daemon REST（起動シーケンス、再生、停止、状態） |
 | `include/dances.h` | ダンス4種の定義（id・色・絵） |
 | `include/secrets.h` | Wi-Fi とロボットの宛先。gitignore 済み |
 | `tools/build.sh` | arduino-cli でビルド・書き込み |
+| `tools/preview/` | Mac で UI を確認するプレビュー |

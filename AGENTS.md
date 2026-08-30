@@ -41,6 +41,38 @@ arduino-cli lib install ArduinoJson
   自コードの警告と混ぜないよう `grep -v packages/m5stack` で絞ると見やすい
 - 現状の使用量は Flash 39% / RAM 15%
 
+## UI は Mac のプレビューで詰める
+
+**UI をいじるたびに実機へ書き込む必要はない。**
+
+```bash
+./tools/preview/build.sh              # ウィンドウを開いて操作できる
+./tools/preview/build.sh --shot out/  # 全画面を PNG に書き出して終了
+./tools/preview/build.sh --scale 2    # 2倍に拡大
+```
+
+実機と同じ描画コード（`src/ui.cpp` と `src/icons.cpp`）を M5GFX の SDL バックエンドで
+動かしている。M5GFX には SDL 対応が同梱されていて、`SDL.h` を先に読ませると
+`#if defined(SDL_h_)` の分岐が有効になる。
+
+- マウスのドラッグ＝スワイプ、クリック＝タップ。キーは A=きいろ、B/スペース=あお、
+  T=つながらない画面、1〜4=ダンス選択、S=PNG 保存
+- `--shot` で書き出した PNG を読めば、目で見て詰められる
+- **arm64 の sdl2 が必要**（`brew install sdl2`）。Homebrew が `/usr/local` と
+  `/opt/homebrew` の両方にある場合、`/opt/homebrew` 側でないとアーキテクチャが合わない
+- ビルドから `M5GFX.cpp` と `platforms/esp32*` は外す（ESP-IDF に依存するため）
+
+### 描画コードを書くときの制約
+
+`src/ui.cpp` と `src/icons.cpp` は **M5Unified・WiFi・HTTPClient に依存させない**。
+プレビューが M5Unified を使えないため（M5Unified に SDL 対応は無い）。型は
+`src/gfx.h` の `Gfx`（= `lgfx::LovyanGFX`）を使う。状態は呼び出し側が持ち、
+`ui::State` で渡す。
+
+- `BLACK` / `WHITE` のような名前は Arduino 側の定義と衝突する。`COL_` を付ける
+- **`drawArc` は輪郭線しか描かない。** 太い帯にしたいときは `fillArc`
+- `readRect` を `uint8_t*` で呼ぶと 8bit カラー扱いになる。`lgfx::rgb888_t*` を使う
+
 ## シリアルログの読み方
 
 ```bash

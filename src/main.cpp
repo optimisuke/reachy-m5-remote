@@ -1,43 +1,34 @@
 // M5Stack StopWatch から Reachy Mini のダンスを再生する。
 //
 // 文字を使わない UI。色と絵と位置だけで操作できるようにしてある。
-//   ・選んでいるダンス … 画面いっぱいの色の丸＋動きを表す絵
-//   ・つぎのダンスへ  … 左右スワイプ / きいろボタン(M5.BtnA)
-//   ・ごー！          … 画面をタップ / あおボタン(M5.BtnB)
-//   ・とめる          … 再生中に画面をタップ / あおボタン
+//   ・つぎのダンスへ … 左へスワイプ / きいろボタン(M5.BtnA)
+//   ・ひとつ前へ     … 右へスワイプ
+//   ・ごー！        … 画面をタップ / あおボタン(M5.BtnB)
+//   ・とめる        … 再生中にタップ / あおボタン
 //
-// 例外は「つながらない」画面の下に小さく出す英字だけ。これは大人が原因を切り分ける
-// ためのもので、子どもの操作には関係ない。
+// 画面の描画は src/ui.cpp にある（Mac のプレビューと共用するため、M5Unified や
+// Wi-Fi には依存させていない）。ここは入力・通信・状態遷移だけを持つ。
 
 #include <M5Unified.h>
 #include <WiFi.h>
 #include <stdlib.h>
 
 #include "dances.h"
-#include "icons.h"
 #include "robot.h"
 #include "secrets.h"
+#include "ui.h"
 
 namespace {
 
-// 円形 AMOLED 468x468。座標は実際の画面サイズから作る。
-int cx = 234, cy = 234;
-int mainY;      // 大きな丸の中心
-int dotsY;      // 選択位置を示す点の列
-int chevronDX;  // 左右のスワイプ目印までの距離
-
-const int MAIN_R = 140;      // 大きな丸の半径
 const int SWIPE_THRESHOLD = 50;  // これ以上横に動いたらスワイプ扱い
 
-enum Screen { BOOT, SELECT, PLAYING, TROUBLE };
-Screen screen = BOOT;
+ui::Layout L;
+ui::State st;
 
-int selected = 0;
 String playingUuid;
 uint32_t nextPollAt = 0;
 uint32_t nextHeartbeatAt = 0;
 uint32_t nextAnimAt = 0;
-int animStep = 0;
 String troubleMsg;
 
 // ---------------------------------------------------------------- 触覚
@@ -49,82 +40,22 @@ void buzz(uint16_t /*ms*/) {
     // TODO: 振動モーターの制御方法が分かったらここに入れる。
 }
 
-// ---------------------------------------------------------------- 描画
-
-// 画面のいちばん外周に細いリングを描く。円形ディスプレイの縁をそのまま使うので
-// 邪魔にならず、Wi-Fi が落ちたときだけ赤くなって気づける。
-void drawEdgeRing(bool ok) {
-    int r = min(cx, cy);
-    M5.Display.fillArc(cx, cy, r - 5, r - 1, 0, 360, ok ? 0x1E3A2F : 0x7F1D1D);
-}
-
-void drawSelect() {
-    const Dance& d = DANCES[selected];
-    M5.Display.fillScreen(TFT_BLACK);
-
-    // 選んでいるダンスを画面いっぱいの丸で見せる。丸ごとタップ範囲。
-    M5.Display.fillCircle(cx, mainY, MAIN_R, d.color);
-    icons::dance(M5.Display, d.icon, cx, mainY, 88, TFT_WHITE);
-
-    // 左右にスワイプできることを示す。控えめな灰色。
-    icons::chevron(M5.Display, cx - chevronDX, mainY, 22, -1, 0x52525B);
-    icons::chevron(M5.Display, cx + chevronDX, mainY, 22, 1, 0x52525B);
-
-    // 「4つのうちいまここ」を点で示す。
-    const int spacing = 44;
-    int x0 = cx - spacing * (DANCE_COUNT - 1) / 2;
-    for (int i = 0; i < DANCE_COUNT; i++) {
-        int x = x0 + spacing * i;
-        if (i == selected) {
-            M5.Display.fillCircle(x, dotsY, 14, DANCES[i].color);
-        } else {
-            M5.Display.fillCircle(x, dotsY, 8, 0x3F3F46);
-        }
-    }
-
-    drawEdgeRing(WiFi.status() == WL_CONNECTED);
-}
-
-void drawPlaying() {
-    const Dance& d = DANCES[selected];
-    M5.Display.fillScreen(d.color);
-    // 触ると止まることを ■ で示す。まわりのくるくるは loop で回す。
-    icons::stop(M5.Display, cx, mainY, 96, TFT_WHITE);
-    drawEdgeRing(WiFi.status() == WL_CONNECTED);
-}
-
-// 再生中のくるくる。背景色を上塗りしながら回す。
-void animatePlaying() {
-    const Dance& d = DANCES[selected];
-    M5.Display.fillArc(cx, mainY, MAIN_R - 14, MAIN_R, 0, 360, d.color);
-    icons::spinner(M5.Display, cx, mainY, MAIN_R, animStep, TFT_WHITE);
-}
-
-void drawTrouble(const String& msg) {
-    M5.Display.fillScreen(TFT_BLACK);
-    icons::blocked(M5.Display, cx, mainY - 10, 86, 0xEF4444);
-    // 触るか きいろボタンで やり直せることを丸い矢印で示す。
-    icons::retry(M5.Display, cx, dotsY - 6, 40, 0xA1A1AA);
-
-    // ここだけ文字。大人が失敗箇所を切り分けるための最小限の情報。
-    M5.Display.setFont(&fonts::Font0);
-    M5.Display.setTextDatum(middle_center);
-    M5.Display.setTextColor(0x52525B);
-    M5.Display.drawString(msg, cx, dotsY + 44);
-    drawEdgeRing(false);
-}
-
-// 起動中のくるくる。step を増やしながら呼ぶ。
-void drawBootProgress(int step) {
-    icons::spinner(M5.Display, cx, mainY, 60, step, TFT_WHITE);
-    M5.Display.fillArc(cx, mainY, 45, 46, 0, 360, TFT_BLACK);  // 内側を消す
-    icons::spinner(M5.Display, cx, mainY, 60, step - 4, 0x18181B);  // 尾を消す
-}
-
 // 押したことが必ず分かるように一瞬光らせる。
-void flash(uint32_t color) {
-    M5.Display.fillScreen(color);
+void flash() {
+    M5.Display.fillScreen(0xFFFFFFu);
     delay(60);
+}
+
+void redraw() {
+    st.wifiOk = (WiFi.status() == WL_CONNECTED);
+    st.trouble = troubleMsg.c_str();
+    ui::draw(M5.Display, L, st);
+}
+
+void goTrouble(const char* why) {
+    troubleMsg = why;
+    st.screen = ui::TROUBLE;
+    redraw();
 }
 
 // ---------------------------------------------------------------- 起動
@@ -135,7 +66,8 @@ bool connectWifi() {
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     for (int i = 0; i < 200; i++) {  // 最大20秒
         if (WiFi.status() == WL_CONNECTED) return true;
-        drawBootProgress(i);
+        st.animStep = i;
+        ui::animate(M5.Display, L, st);
         delay(100);
     }
     return false;
@@ -143,12 +75,12 @@ bool connectWifi() {
 
 void startUp() {
     Serial.printf("[boot] wifi connecting to \"%s\"\n", WIFI_SSID);
-    M5.Display.fillScreen(TFT_BLACK);
+    st.screen = ui::BOOT;
+    redraw();
+
     if (!connectWifi()) {
         Serial.printf("[boot] wifi ng (status=%d)\n", WiFi.status());
-        troubleMsg = "wifi ng";
-        screen = TROUBLE;
-        drawTrouble(troubleMsg);
+        goTrouble("wifi ng");
         return;
     }
 
@@ -159,23 +91,21 @@ void startUp() {
     String detail;
     if (!robot::ensureReady(detail)) {
         Serial.printf("[boot] robot ng: %s\n", detail.c_str());
-        troubleMsg = detail;
-        screen = TROUBLE;
-        drawTrouble(troubleMsg);
+        goTrouble(detail.c_str());
         return;
     }
 
     Serial.println("[boot] ready");
-    screen = SELECT;
-    drawSelect();
+    st.screen = ui::SELECT;
+    redraw();
 }
 
 // ---------------------------------------------------------------- 入力
 
 struct Input {
-    bool next = false;   // つぎのダンスへ
-    bool prev = false;   // ひとつ前のダンスへ
-    bool go = false;     // ごー！ / とめる
+    bool next = false;  // つぎのダンスへ
+    bool prev = false;  // ひとつ前のダンスへ
+    bool go = false;    // ごー！ / とめる
 };
 
 // ボタンとタッチをまとめて一つの意図に変換する。
@@ -206,11 +136,7 @@ void setup() {
     M5.begin(cfg);
     M5.Display.setBrightness(160);
 
-    cx = M5.Display.width() / 2;
-    cy = M5.Display.height() / 2;
-    mainY = cy - 30;
-    dotsY = cy + 150;
-    chevronDX = MAIN_R + 40;
+    L = ui::layout(M5.Display.width(), M5.Display.height());
 
     Serial.begin(115200);
     delay(600);  // USB CDC が繋がるのを少し待つ（待たないと最初のログが落ちる）
@@ -225,63 +151,58 @@ void loop() {
     M5.update();
     Input in = readInput();
 
-    switch (screen) {
-        case SELECT:
+    switch (st.screen) {
+        case ui::SELECT:
             if (in.next || in.prev) {
                 buzz(30);
-                selected = (selected + (in.next ? 1 : DANCE_COUNT - 1)) % DANCE_COUNT;
+                st.selected = (st.selected + (in.next ? 1 : DANCE_COUNT - 1)) % DANCE_COUNT;
                 Serial.printf("[ui] %s -> %s\n", in.next ? "next" : "prev",
-                              DANCES[selected].id);
-                drawSelect();
+                              DANCES[st.selected].id);
+                redraw();
             } else if (in.go) {
                 buzz(60);
-                Serial.printf("[ui] go %s\n", DANCES[selected].id);
-                flash(TFT_WHITE);
-                playingUuid = robot::playDance(DANCES[selected].id);
+                Serial.printf("[ui] go %s\n", DANCES[st.selected].id);
+                flash();
+                playingUuid = robot::playDance(DANCES[st.selected].id);
                 if (playingUuid.length() == 0) {
-                    troubleMsg = "play ng";
-                    screen = TROUBLE;
-                    drawTrouble(troubleMsg);
+                    goTrouble("play ng");
                     break;
                 }
-                screen = PLAYING;
+                st.screen = ui::PLAYING;
                 nextPollAt = millis() + 800;
-                drawPlaying();
+                redraw();
             }
             break;
 
-        case PLAYING:
+        case ui::PLAYING:
             if (in.go) {  // とめる
                 buzz(60);
                 Serial.println("[ui] stop");
                 robot::stopMove(playingUuid);
-                screen = SELECT;
-                drawSelect();
+                st.screen = ui::SELECT;
+                redraw();
                 break;
             }
             if (millis() >= nextAnimAt) {
                 nextAnimAt = millis() + 60;
-                animStep++;
-                animatePlaying();
+                st.animStep++;
+                ui::animate(M5.Display, L, st);
             }
             // 再生は非ブロッキングなので、終わったかを定期的に聞く。
             if (millis() >= nextPollAt) {
                 nextPollAt = millis() + 800;
                 if (!robot::isPlaying()) {
-                    screen = SELECT;
-                    drawSelect();
+                    st.screen = ui::SELECT;
+                    redraw();
                 }
             }
             break;
 
-        case TROUBLE:
-            if (in.next || in.prev || in.go) {
-                screen = BOOT;
-                startUp();
-            }
+        case ui::TROUBLE:
+            if (in.next || in.prev || in.go) startUp();
             break;
 
-        case BOOT:
+        case ui::BOOT:
             break;
     }
 
@@ -292,14 +213,14 @@ void loop() {
         // 待機中に Wi-Fi が落ちたらリングの色で知らせる（描き直すのは縁だけ）。
         static int lastWifi = -1;
         int nowWifi = WiFi.status();
-        if (nowWifi != lastWifi && screen != BOOT) {
+        if (nowWifi != lastWifi && st.screen != ui::BOOT) {
             lastWifi = nowWifi;
-            drawEdgeRing(nowWifi == WL_CONNECTED);
+            ui::edgeRing(M5.Display, L, nowWifi == WL_CONNECTED);
         }
         static const char* names[] = {"boot", "select", "playing", "trouble"};
         Serial.printf("[hb] screen=%s dance=%s touch=%d wifi=%d ip=%s heap=%u\n",
-                      names[screen], DANCES[selected].id, (int)M5.Touch.isEnabled(),
-                      WiFi.status(), WiFi.localIP().toString().c_str(),
+                      names[st.screen], DANCES[st.selected].id, (int)M5.Touch.isEnabled(),
+                      nowWifi, WiFi.localIP().toString().c_str(),
                       (unsigned)ESP.getFreeHeap());
     }
 
